@@ -1,0 +1,471 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+# DSC 423: Data Analysis & Regression
+## Assignment 4: Model Building
+~~~
+Name: Kushal Navghare
+Student ID: 2116916
+Honor Statement: I, Kushal Navghare, assure that I have completed this work independently.
+The solutions given are entirely my own work.
+~~~
+
+```{r echo=FALSE, include=FALSE}
+# setting up
+rm(list=ls())
+dir.path <- "/home/kush/DSC-423_Data_Analysis_Regression_I/"
+setwd(dir.path)
+source('code/00_Setup.R')
+```
+
+### Question 1
+### Find on the D2L a car price dataset. Use R to perform a regression analysis on the dataset. Your submission should take the form of a technical report.
+
+
+```{r}
+# read csv files
+car_df <- read.csv(paste0(dir.path, "data/CARPRICE.csv"))
+```
+### 1.A] Paste your final model into your submission (just the R output).
+```{r echo=FALSE, include=TRUE}
+final_model <- readRDS(paste0(dir.path, "results/models/dsc423_assignment_4_car_model_6.rda"))
+
+summary(final_model)
+```
+
+
+### 1.B] Describe the model building process through which you generated this model.
+
+Let's look at the data summary.
+
+```{r fig.align='center', fig.height=8, fig.width=8}
+# summary of cars dataset
+str(car_df)
+
+summary(car_df)
+
+# correlation matrix
+corr_df <- cor_pmat(car_df %>% 
+                      select_if(is.numeric))
+
+ggcorrplot(corr_df, lab = TRUE, hc.order = TRUE, type = "lower")
+```
+
+From the correlation plot above, it looks like there are variables that are correlated to each other like boreratio and compressionratio. This might cause problems while building a model with single order terms. However, such variables might be useful in building models of second order terms and interactions.
+
+Let's look at the distribution plot of the target variable that is carprice.
+
+```{r fig.align='center', fig.height=3.5, fig.width=5}
+# histogram
+plt_1 <- ggplot(data = car_df, aes(price))
+plt_1 + geom_histogram() + 
+  ggtitle("Distribution of price") +
+  xlab("price") +
+  ylab("Frequency")
+
+# boxplot
+plt_2 <- ggplot(data = car_df, aes(y = price))
+plt_2 + geom_boxplot() + 
+  ggtitle("Distribution of Price")
+
+```
+
+From looking at the distribution of target variable, it looks like there are a lot of outliers in the data. However, we're unable to decide the treatment of these outliers as we don't know the process behind how the data was collected. Hence, it is unable to justify whether they are the actual outliers or real values within the data. Let's see if the price of car varies for certain categories and that can give us more information.
+
+```{r fig.align='center', fig.height=3.5, fig.width=5}
+# boxplot of price with other categories
+plt_3 <- ggplot(data = car_df, aes(x = enginelocation, y = price))
+plt_3 + geom_boxplot() + 
+  ggtitle("Distribution of Price") + 
+  xlab("Engine Location") + 
+  ylab("Price")
+
+plt_3 <- ggplot(data = car_df, aes(x = drivewheel, y = price))
+plt_3 + geom_boxplot() + 
+  ggtitle("Distribution of Price") + 
+  xlab("Drive wheel") + 
+  ylab("Price")
+
+
+plt_3 <- ggplot(data = car_df, aes(x = aspiration, y = price))
+plt_3 + geom_boxplot() + 
+  ggtitle("Distribution of Price") + 
+  xlab("aspiration") + 
+  ylab("Price")
+
+```
+
+Looks like the car price ranges a lot based on engine location. Also, it changes with aspiration, wheeldrive, etc.
+
+Let's see if we can model the car price using all features as a baseline model.
+
+```{r fig.align='center', fig.height=4, fig.width=6}
+# building a model (baseline)
+# lets try building a model using all the available features
+car_model_1 <- lm(price~., data=car_df %>% select(-c(car_ID, CarName)))
+
+summary(car_model_1)
+```
+
+From the results, it looks like the model is working very well, with adjusted R-squared value of 0.91. However, by using all the features available, we're building a very complex model, which is difficult to interpret.
+
+```{r fig.align='center', fig.width=6, fig.height=4}
+# model residual plots
+plot(car_model_1)
+```
+
+Let's try a model considering only few features that affect price
+
+```{r}
+# considering only few features that affect price
+car_model_2 <- lm(price~compressionratio+boreratio+enginelocation+aspiration+drivewheel,
+                  data = car_df)
+
+summary(car_model_2)
+
+```
+From looking at the results, it is clear that the model performance is very low. With the features that affect the price of car, the model built only achieved adjusted R-squared of 0.499 (49%), which is very low. Although, the p-values of the variables considered for building this model is significant. 
+
+Let's look at the model plots now.
+
+```{r fig.align='center', fig.width=6, fig.height=4}
+# model residual plots
+plot(car_model_2)
+```
+
+From the plots above, we can see that the residuals are not normal. Meaning, it violates the assumption of residuals for linear regression.
+
+Let's try building a different model with only selected features.
+
+```{r}
+# selected features
+df1 <- car_df %>% 
+  select(price, wheelbase, peakrpm, citympg, highwaympg, curbweight, boreratio, stroke,
+         carlength, carwidth, carheight, compressionratio, horsepower)
+
+car_model_3 <- lm(price ~., data = df1)
+
+summary(car_model_3)
+```
+
+From the results, the adjusted R-squared value improved from 0.49 to 0.78. Yet, by looking at p-values, only a few set of variables are significant in this case. 
+
+Let's build a model by eliminating features with highest p-value.
+
+```{r}
+df3 <- car_df %>% 
+  select(price, wheelbase, peakrpm, curbweight, boreratio, stroke,
+         carlength, carwidth, compressionratio, horsepower)
+
+car_model_4 <- lm(price ~., data = df3)
+
+summary(car_model_4)
+```
+
+We are able to achieve the similar adj R-squared value with limited set of features. Our this version of model is less complex, making it more interpretable.
+
+Let's see if we can build even less complex version of model with limited set of features which are significant to reject the null hypothesis and accept the alternate one.
+
+```{r fig.align='center', fig.width=8, fig.height=6}
+df4 <- car_df %>% 
+  select(price, carwidth, curbweight, stroke, compressionratio, horsepower)
+```
+
+```{r}
+car_model_5 <- lm(price ~., data = df4)
+
+summary(car_model_5)
+```
+
+Here, by keeping the model performance intact (adj R-squared at 0.78), we were able to build a model which has all the significant set of features which are sufficient to accept the alternate hypothesis.
+
+```{r fig.align='center', fig.height=3.5, fig.width=6}
+plot(car_model_5)
+```
+
+To summarise the model building process:
+
+1. First, we will focus on understanding the distribution of the data. This step is essential to building our initial assumptions regarding the data. Here, we will look at  the distribution of our dependent variable and see if the distribution is normal or not. This will also consider whether there are outliers present in the data.
+
+2. After looking at data distribution, we will go on with building a baseline model. Here, we will build a model using all the features present in the data (both numeric and categorical). This will tell us whether the data can be modeled using linear regression.
+
+3. Next, we'll slowly decrease the complexity of the model to make it easier to interpret. We will look at p-values from the previous model and remove the features that has high p-values. This way, we make sure that unimportant features can be removed from the model and build a better version of the model. Also, this improves model interpretability and same can be done mathematically.
+
+4. After selecting significant set of features for getting the best model, we now will consider if there are any second-order transformation possible that can be modeled using the data. This enables us to improve the model predictability. However, the model interpretation gets complicated by including such transformations. There's a trade-off between model performance and interpretability. 
+
+5. Later, we will see if including interaction terms (categorical vs continuous) between the independent terms can imporve the performance of the model. We perform this step solely to check if interaction between any category influences the variation in dependent variable. However, doing such can lead to misinterpretation as this further leads to affect other significant features in the model.
+
+6. At the end, we select only the significant set of features, second order transformationa and interaction terms and build a model which not only has highest adjusted R-squared value but also has F-test significance. This will help us in determining if the model built using independent variables is sufficient to explain the variance in the dependent variable or not.
+
+### 1.C]
+### What significant second-order terms did you find, if any? Did you try all second-order terms? Did you look at scatter plots to determine which second-ordert erms to evaluate? Discuss the benefits and drawbacks of these two strategies.
+
+Now, we will see if there are any second order terms that we can create which might improve the current performance of the model.
+
+In order to do that, let's look at the data again and see if there any second order transformation possible.
+
+```{r fig.align='center', fig.height=6, fig.width=8, message=FALSE, warning=FALSE}
+# selecting few features
+df5 <- car_df %>% 
+  select(price, wheelbase, peakrpm, curbweight, boreratio, stroke,
+         carlength, carwidth, compressionratio, horsepower, enginelocation)
+
+ggpairs(df5)
+```
+
+From the distribution of above features, the second order terms can be created to utilize the bi-modal distribution of these features.
+
+```{r}
+df6 <- df5 %>% 
+  mutate(sec_ordr_hrspwr = horsepower^2, 
+         sec_ordr_crb_wgt = curbweight^2, 
+         sec_ordr_carwdth = carwidth^2) %>% 
+  select(-c(horsepower, curbweight, carwidth, compressionratio, peakrpm))
+
+car_model_6 <- lm(price~., data = df6)
+summary(car_model_6)
+```
+From the results above, we were able to achieve the highest adjusted R-squared of 0.84 using second order terms. 
+```{r echo=FALSE, include=FALSE}
+# save model
+saveRDS(car_model_6, file = paste0(dir.path, "results/models/dsc423_assignment_4_car_model_6.rda"))
+```
+
+### 1.D] 
+### What significant interaction terms did you find, if any? Did you try all combinations of interaction terms? Do you think that is an appropriate strategy? What happens to the number of interaction terms as the number of independent terms increases?
+
+Now let's see if we can produce some interaction terms to improve the performance of the model further.
+
+In order to understand what possible interaction are possible, lets look at pair plot of all features with different groups (categorical features).
+
+```{r fig.align='center', fig.height=6, fig.width=8, message=FALSE, warning=FALSE}
+df7 <- car_df %>% 
+  select(c(price, wheelbase, peakrpm, curbweight, boreratio, stroke, carlength, 
+           carwidth, compressionratio, drivewheel))
+
+ggpairs(df7, aes(color = drivewheel), size = 1)
+```
+
+Looks like drivewheel might have interaction with a couple of features like carlength, carwidth, boreratio, etc. Let's try few of the interactions below.
+
+```{r fig.align='center', fig.height=4, fig.width=6}
+plt_4 <- ggplot(df7, aes(x = price, y = carlength, color = drivewheel))
+plt_4 + geom_point() + 
+  geom_smooth(method = "lm")
+```
+
+Interaction can be seen in 2 of the 3 categories of drivewheel. This will clearly show that such interaction can be modeled into linear regression.
+
+```{r}
+car_model_7 <- lm(price~ peakrpm + curbweight + 
+                    stroke + factor(drivewheel):carlength, data = df7)
+
+summary(car_model_7)
+```
+
+Here, we've considered interaction between drivewheel and carlength. As we can see from p-values, the interaction between these variables is very significant. Although, this model only achieved adjusted R-squared of 0.73, all the features used in this model are very significant. 
+
+Let's see if adding more independent terms have any effect on model performance.
+
+```{r}
+car_model_8 <- lm(price ~ wheelbase + peakrpm + curbweight + boreratio + stroke + 
+                    carwidth + compressionratio + factor(drivewheel):carlength, 
+                  data = df7)
+
+summary(car_model_8)
+```
+As the number of independent terms increases, the significance of interaction terms and its factors decreased. We can no longer accept the alternate hypothesis of thes interaction terms as p-value is not significant. 
+
+The adj R-squared improved from 0.73 to 0.74. This is very little improvement to the performance. 
+
+### 1.E] iscuss your final model. Evaluate the t-tests, F-Test and adj-R2 accordingly. Do you think this is a “good” model? Explain.
+
+```{r}
+# selecting few features
+df5 <- car_df %>% 
+  select(price, wheelbase, peakrpm, curbweight, boreratio, stroke,
+         carlength, carwidth, compressionratio, horsepower, enginelocation)
+
+# second order transformation
+df5 <- df5 %>% 
+  mutate(sec_ordr_hrspwr = horsepower^2, 
+         sec_ordr_crb_wgt = curbweight^2, 
+         sec_ordr_carwdth = carwidth^2) %>% 
+  select(-c(horsepower, curbweight, carwidth, compressionratio, peakrpm))
+
+# build model
+car_model_6 <- lm(price~., data = df6)
+
+# model output
+summary(car_model_6)
+```
+
+This model was created using selected set of features and second order terms of few of the independent features. 
+With the help of these transformations, we were able to achieve highest R-squared values of 0.84. 
+Additionally, while looking at the p-values of all the independent features, it looks like only a few of them are statistically significant, meaning that there are correlated terms present in the independent variables, affecting the p-value >= 0.05. 
+
+This is when, F-statistics comes into play. F-test considers two hypothesis:
+
+1. The null hypothesis: There is no relationship between ANY of the independent variables and dependent variable (i.e. B1=B2=B3...=Bn = 0)
+2. Alternate hypothesis: At least one independent variable is related to dependent variable. (B1 != 0)
+
+In our model, the p-value of F-test is < 0.00000000000000022, meaning that we can reject the null hypothesis and assume that at least one independent variable is present which is able to explain the variance in dependent variable. 
+
+This concludes that we can ignore the intercept only model (B1,B2, B3, ...Bn = 0) and use the complex version of model to predict the dependent variable using significant features.
+
+### 1.F] Include your code an appendix.
+### Appendix: 
+```{r eval=FALSE}
+library(dplyr)
+library(ggplot2)
+library(GGally)
+library(ggcorrplot)
+
+# read csv files
+car_df <- read.csv("../Downloads/CARPRICE.csv")
+
+# summary of cars dataset
+str(car_df)
+
+summary(car_df)
+
+# correlation matrix
+corr_df <- cor_pmat(car_df %>% 
+                      select_if(is.numeric))
+
+# correlation plot
+ggcorrplot(corr_df, lab = TRUE, hc.order = TRUE, type = "lower")
+
+# histogram
+plt_1 <- ggplot(data = car_df, aes(price))
+plt_1 + geom_histogram() + 
+  ggtitle("Distribution of price") +
+  xlab("price") +
+  ylab("Frequency")
+
+# boxplot
+plt_2 <- ggplot(data = car_df, aes(y = price))
+plt_2 + geom_boxplot() + 
+  ggtitle("Distribution of Price")
+
+# boxplot of price with other categories
+plt_3 <- ggplot(data = car_df, aes(x = enginelocation, y = price))
+plt_3 + geom_boxplot() + 
+  ggtitle("Distribution of Price") + 
+  xlab("Engine Location") + 
+  ylab("Price")
+
+plt_3 <- ggplot(data = car_df, aes(x = drivewheel, y = price))
+plt_3 + geom_boxplot() + 
+  ggtitle("Distribution of Price") + 
+  xlab("Drive wheel") + 
+  ylab("Price")
+
+
+plt_3 <- ggplot(data = car_df, aes(x = aspiration, y = price))
+plt_3 + geom_boxplot() + 
+  ggtitle("Distribution of Price") + 
+  xlab("aspiration") + 
+  ylab("Price")
+
+
+# building a model (baseline)
+# lets try building a model using all the available features
+car_model_1 <- lm(price~., data=car_df %>% select(-c(car_ID, CarName)))
+
+summary(car_model_1)
+
+# model residual plots
+plot(car_model_1)
+
+# considering only few features that affect price
+car_model_2 <- lm(price~compressionratio+boreratio+enginelocation+aspiration+drivewheel,
+                  data = car_df)
+
+summary(car_model_2)
+# model residual plots
+plot(car_model_2)
+
+# selected features
+df1 <- car_df %>% 
+  select(price, wheelbase, peakrpm, citympg, highwaympg, curbweight, boreratio, stroke,
+         carlength, carwidth, carheight, compressionratio, horsepower)
+
+car_model_3 <- lm(price ~., data = df1)
+
+summary(car_model_3)
+
+df3 <- car_df %>% 
+  select(price, wheelbase, peakrpm, curbweight, boreratio, stroke,
+         carlength, carwidth, compressionratio, horsepower)
+
+car_model_4 <- lm(price ~., data = df3)
+
+summary(car_model_4)
+
+df4 <- car_df %>% 
+  select(price, carwidth, curbweight, stroke, compressionratio, horsepower)
+
+car_model_5 <- lm(price ~., data = df4)
+
+summary(car_model_5)
+plot(car_model_5)
+
+# selecting few features
+df5 <- car_df %>% 
+  select(price, wheelbase, peakrpm, curbweight, boreratio, stroke,
+         carlength, carwidth, compressionratio, horsepower, enginelocation)
+
+ggpairs(df5)
+
+df6 <- df5 %>% 
+  mutate(sec_ordr_hrspwr = horsepower^2, 
+         sec_ordr_crb_wgt = curbweight^2, 
+         sec_ordr_carwdth = carwidth^2) %>% 
+  select(-c(horsepower, curbweight, carwidth, compressionratio, peakrpm))
+
+car_model_6 <- lm(price~., data = df6)
+summary(car_model_6)
+
+df7 <- car_df %>% 
+  select(c(price, wheelbase, peakrpm, curbweight, boreratio, stroke, carlength, 
+           carwidth, compressionratio, drivewheel))
+
+ggpairs(df7, aes(color = drivewheel), size = 1)
+
+plt_4 <- ggplot(df7, aes(x = price, y = carlength, color = drivewheel))
+plt_4 + geom_point() + 
+  geom_smooth(method = "lm")
+
+car_model_7 <- lm(price~ peakrpm + curbweight + 
+                    stroke + factor(drivewheel):carlength, data = df7)
+
+summary(car_model_7)
+
+car_model_8 <- lm(price ~ wheelbase + peakrpm + curbweight + boreratio + stroke + 
+                    carwidth + compressionratio + factor(drivewheel):carlength, 
+                  data = df7)
+
+summary(car_model_8)
+
+# selecting few features
+df5 <- car_df %>% 
+  select(price, wheelbase, peakrpm, curbweight, boreratio, stroke,
+         carlength, carwidth, compressionratio, horsepower, enginelocation)
+
+# second order transformation
+df5 <- df5 %>% 
+  mutate(sec_ordr_hrspwr = horsepower^2, 
+         sec_ordr_crb_wgt = curbweight^2, 
+         sec_ordr_carwdth = carwidth^2) %>% 
+  select(-c(horsepower, curbweight, carwidth, compressionratio, peakrpm))
+
+# build model
+car_model_6 <- lm(price~., data = df6)
+
+# model output
+summary(car_model_6)
+
+```
