@@ -1,0 +1,217 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+# DSC 423: Data Analysis & Regression
+## Assignment 5: Variable Screening
+~~~
+Name: Kushal Navghare
+Student ID: 2116916
+Honor Statement: I, Kushal Navghare, assure that I have completed this work independently.
+The solutions given are entirely my own work.
+~~~
+
+```{r echo=FALSE, include=FALSE}
+rm(list=ls())
+dir.path <- '/home/kush/DSC-423_Data_Analysis_Regression_I/'
+setwd(dir.path)
+source(paste0(dir.path, "code/00_Setup.R"))
+
+library(MASS)
+library(corrplot)
+library(DAAG)
+```
+
+### 1.The purpose of k-fold cross validation is often misunderstood.
+
+#### a. How do you use cross validation to select a final (or production) model? Note: it is not the “best” of the k models you have built using cross validation.
+
+<br>
+
+Ans: K-Fold cross validation technique splits the data into k equal parts and considers the k-1 folds as part of training set, the remaining fold is kept aside for testing. The process builds k versions of different model and the overall accuracy metric is aggregated at the end. For each iteration, a new model is trained completely independent of the previous iteration. This way, we get to see more generalized version of the model.
+
+However, to use this technique efficiently, we perform multiple iteration of k-fold cross validation and test multiple assumptions in such way. For example, we can try different set of features for each iteration of k-fold validation. This way, we get different performance metric for each iteration and these metrics can be compared to decide the best version of model and set of features which yields more generalized and accurate predictions on future dataset.
+
+
+### 2. The pgatour2006.csv dataset contains data for 196 players. The variables in the dataset are:
+* Player’s name
+* PrizeMoney = average prize money per tournament
+* DrivingAccuracy = percent of times a player is able to hit the fairway with his tee shot
+* GIR = percent of time a player was able to hit the green within two or less than par (Greens in Regulation)
+* BirdieConversion = percentage of times a player makes a birdie or better after
+hitting the green in regulation
+* PuttingAverage = putting performance on those holes where the green was hit in
+regulation.
+* PuttsPerRound= average number of putts per round (shots played on the green)
+
+```{r}
+# read file
+raw_df <- read.csv(paste0(dir.path, 'data/pgatour2006.csv'))
+
+# summary
+dim(raw_df)
+summary(raw_df)
+str(raw_df)
+```
+
+
+#### a. Build a complete first-order model. Evaluate the model using 5-fold cross validation. If necessary, remove a non-significant variable and repeat until you have your final first-order model. Present the model.
+
+
+```{r fig.align='center', fig.height=6, fig.width=8, message=FALSE, warning=FALSE}
+# check correlation
+cor_df <- cor(raw_df %>% select_if(is.numeric))
+
+corrplot(cor_df,
+         type="full",
+         order="hclust",
+         tl.col="black", tl.srt=45)
+
+# check pair plot
+ggpairs(raw_df %>% select_if(is.numeric))
+```
+
+Let's start building a first-order model. here, we will try to predict based on Player's attributes, how much PrizeMoney can he make.
+
+```{r fig.align='center', fig.height=6, fig.width=8, message=FALSE, warning=FALSE}
+# select numeric columns
+num_df <- raw_df %>% 
+  select_if(is.numeric)
+
+# build a model (baseline)
+base_model <- lm(PrizeMoney~DrivingAccuracy+GIR+BirdieConversion+Scrambling,
+                 data = num_df)
+
+summary(base_model)
+```
+
+```{r fig.align='center', fig.height=6, fig.width=8, message=FALSE, warning=FALSE}
+# cross validation
+cv_model <- cv.lm(data = num_df, 
+                    form.lm = formula(PrizeMoney~DrivingAccuracy+GIR+BirdieConversion+Scrambling), 
+                   plotit = c("Observed", "Residual"), legend.pos = "topleft",
+                   m = 4)
+```
+
+
+#### b. Evaluate scatterplots to determine which second-order terms should be tested. Test them using 5-fold cross validation and add them one-by-one until you arrive at a model you feel is appropriate. Present the model.
+
+
+```{r fig.align='center', fig.height=6, fig.width=8, message=FALSE, warning=FALSE}
+# pair plot 
+ggpairs(num_df, size=.5)
+```
+
+```{r fig.align='center', fig.height=3, fig.width=4.5, message=FALSE, warning=FALSE}
+# scatter plots
+plt_1 <- ggplot(data = num_df, aes(x = GIR, y = PrizeMoney))
+plt_1 + geom_point(size=3) + 
+  geom_smooth(method = "lm", formula = y ~ poly(x, 2, raw = TRUE)) + 
+  ggtitle("GIR vs PrizeMoney: 2nd order poly")
+
+plt_1 <- ggplot(data = num_df, aes(x = BounceBack, y = AveDrivingDistance))
+plt_1 + geom_point(size=3) + 
+  geom_smooth(method = "lm", formula = y ~ poly(x, 2, raw = TRUE)) + 
+  ggtitle("BounceBack vs AveDrivingDistance: 2nd order poly")
+
+plt_1 <- ggplot(data = num_df, aes(x = BounceBack, y = BirdieConversion))
+plt_1 + geom_point(size=3) + 
+  geom_smooth(method = "lm", formula = y ~ poly(x, 2, raw = TRUE)) + 
+  ggtitle("BounceBack vs BirdieConversion: 2nd order poly")
+
+```
+
+```{r}
+# try second order model
+sec_ordr_model <- lm(PrizeMoney~(SandSaves+GIR+BirdieConversion)^2, data = num_df)
+
+summary(sec_ordr_model)
+
+```
+
+```{r}
+# add terms
+sec_df <- num_df %>% 
+  mutate(AveDrvDistSec = AveDrivingDistance^2, 
+         DrvAccSec = DrivingAccuracy^2, 
+         GIRSec = GIR^2, 
+         BouncBckSec = BounceBack^2)
+
+model_2 <- lm(PrizeMoney~BouncBckSec+GIRSec+BounceBack+BirdieConversion+GIR,
+              data = sec_df)
+
+summary(model_2)
+```
+
+```{r}
+# add interaction terms
+thr_df <- sec_df %>% 
+  mutate(AvgDrvD_BouncBck = AveDrivingDistance*BounceBack, 
+         DrvAcc_GIR = DrivingAccuracy*GIR, 
+         PuttAvg_Gir = PuttingAverage*GIR, 
+         PuttAvg_BouncBck = PuttingAverage*BounceBack, 
+         PuttAvg_Scrmb = PuttingAverage*Scrambling, 
+         Scrmb_BouncBck = Scrambling*BounceBack, 
+         SndSvs_Scrmb = SandSaves*Scrambling) %>% 
+  dplyr::select(-c(Scrambling, PuttsPerRound, BounceBack))
+
+model_3 <- lm(PrizeMoney~., data = thr_df)
+
+summary(model_3)
+```
+
+```{r fig.align='center', fig.height=6, fig.width=8, message=FALSE, warning=FALSE}
+# cross validation
+cv_sec_model <- CVlm(data = thr_df, 
+                      form.lm = formula(PrizeMoney~.),
+                      m = 4)
+```
+
+
+#### c. Beginning from scratch, engineer all possible second-order terms and add them to your dataset. From this dataset, produce a model using backward selection. Evaluate this model using 5-fold cross validation. Do you arrive at the same model as above? Explain.
+
+
+```{r }
+# 
+part_c_df <- thr_df %>% 
+  mutate(gir_sec = poly(GIR, 2, raw=TRUE), 
+         bird_conv_sec = poly(BirdieConversion, 2, raw=T), 
+         sand_saves_sec = poly(SandSaves, 2, raw=T)) %>% 
+  dplyr::select(c(PrizeMoney, GIR, BirdieConversion, SandSaves, gir_sec, bird_conv_sec, 
+                  sand_saves_sec,Scrmb_BouncBck, PuttAvg_Scrmb,
+                  PuttAvg_BouncBck, PuttAvg_Gir, DrvAcc_GIR, BouncBckSec))
+
+
+# second order model
+model_5 <- lm(PrizeMoney~.,data = part_c_df)
+
+summary(model_5)
+```
+Now, let's try backward selection.
+
+```{r}
+# backward selection
+bckwrd_selctn <- stepAIC(model_5, direction = "backward")
+
+print(bckwrd_selctn$anova)
+```
+Let's see how the final model is performing.
+
+```{r}
+model_final <- lm(PrizeMoney ~ gir_sec + bird_conv_sec + sand_saves_sec + Scrmb_BouncBck + 
+    PuttAvg_Scrmb + PuttAvg_BouncBck + PuttAvg_Gir + DrvAcc_GIR + 
+    BouncBckSec, data = part_c_df)
+
+summary(model_final)
+```
+From comparison, it is clear that we've arrived the model from earlier. This is because of the data used to build the model. We've used the data which yields the best model possible with features available to us. 
+
+As the same data has been used to perform stepwise model selection, it will not be able to achieve local maxima or minima of the metric. Yet, it will follow a particular path by adding or removing the variables from the iteration.
+
+
+#### d. You have used two procedures to build a second-order model. Compare these two procedures. Which do you think is “best”? Explain.
+
+In the first method, we first identify the features that are significant by building a full model with all the features. Then, gradually, we remove the features which are not significant. This is a iterative process where we remove features one-by-one to get the best version of the model. However, in the second method, we build a model using stepwise selection where we pass in a full model object and select the direction for stepwise search. In this method, we build a multiple versions of model based on its AIC (prediction error, similar to adj R-squared) and features. 
+
+Building a model using backward or forward selection method gives you more flexibility in terms of manual efforts. This way, we can build multiple versions of model and pick one of our choice which is accurate and less complex. Also, it tries all the combination of model from null model (model with no features) to full model (with all features) by defining the scope. Therefore, stepwise selection is best for building a model.
