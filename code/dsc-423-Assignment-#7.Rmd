@@ -1,0 +1,507 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+# DSC 423: Data Analysis & Regression
+## Assignment 7: Regression Pitfalls
+~~~
+Name: Kushal Navghare
+Student ID: 2116916
+Honor Statement: I, Kushal Navghare, assure that I have completed this work independently.
+The solutions given are entirely my own work.
+~~~
+
+```{r echo=FALSE, include=FALSE}
+rm(list=ls())
+dir.path <- '/home/kush/DSC-423_Data_Analysis_Regression_I/'
+setwd(dir.path)
+source(paste0(dir.path, "code/00_Setup.R"))
+
+library(MASS)
+library(Metrics)
+library(car)
+library(corrplot)
+library(DAAG)
+```
+
+
+#### 1. Download the Pisa2009 Dataset from the D2L. The Programme for International Student Assessment (PISA) is a test given every three years to 15-year-old students from around the world to evaluate their performance in mathematics, reading, and science. This test provides a quantitative way to compare the performance of students from different parts of the world. In this homework assignment, we will predict the reading scores of students from the United States of America on the 2009 PISA exam. The dataset contains information about the demographics and schools for American students taking the exam, derived from 2009 PISA Public-Use Data Files distributed by the United States National Center for Education Statistics (NCES). Each row in the dataset represents one student taking the exam. The datasets have the following variables:
+
+1. grade: The grade in school of the student (most 15-year-olds in America are in 10th grade)
+2. male: Whether the student is male (1/0)
+3. raceeth: The race/ethnicity composite of the student
+4. preschool: Whether the student attended preschool (1/0)
+5. expectBachelors: Whether the student expects to obtain a bachelor's degree (1/0)
+6. motherHS: Whether the student's mother completed high school (1/0)
+7. motherBachelors: Whether the student's mother obtained a bachelor's degree (1/0)
+8. motherWork: Whether the student's mother has part-time or full-time work (1/0)
+9. fatherHS: Whether the student's father completed high school (1/0)
+10. fatherBachelors: Whether the student's father obtained a bachelor's degree (1/0)
+11. fatherWork: Whether the student's father has part-time or full-time work (1/0)
+12. selfBornUS: Whether the student was born in the United States of America (1/0)
+13. motherBornUS: Whether the student's mother was born in the United States of America (1/0)
+14. fatherBornUS: Whether the student's father was born in the United States of America (1/0)
+15. englishAtHome: Whether the student speaks English at home (1/0)
+16. computerForSchoolwork: Whether the student has access to a computer for schoolwork (1/0)
+17. read30MinsADay: Whether the student reads for pleasure for 30 minutes/day (1/0)
+18. minutesPerWeekEnglish: The number of minutes per week the student spend in English class
+19. studentsInEnglish: The number of students in this student's English class at school
+20. schoolHasLibrary: Whether this student's school has a library (1/0)
+21. publicSchool: Whether this student attends a public school (1/0)
+22. urban: Whether this student's school is in an urban area (1/0)
+23. schoolSize: The number of students in this student's school
+24. readingScore: The student's reading score, on a 1000-point scale
+
+
+```{r}
+# read dataset
+raw_df <- read.csv(paste0(dir.path, 'data/Pisa2009.csv')) %>% 
+  dplyr::select(-c(X))
+```
+
+
+
+#### Write a professional report detailing your analysis of the dataset including your efforts to...
+
+
+#### a. Create a training and testing set using n-fold cross validation.
+```{r}
+# create 2 partitions
+df_partition <- createDataPartition(raw_df$readingScore, p = .75, list = FALSE)
+
+# split into two sets
+train_set <- raw_df[df_partition, ]
+test_set <- raw_df[-df_partition, ]
+```
+
+
+
+#### b. Perform appropriate univariate and bivariate analysis on the data
+
+
+
+Since a lot of variables are binary (represented as 1 and 0 in data), we will select only few which are continuous at first.
+```{r fig.align='center', fig.height=6, fig.width=8, message=FALSE, warning=FALSE}
+# Analysis
+# panel plot
+ggpairs(raw_df %>% dplyr::select(c(readingScore, schoolSize, studentsInEnglish, minutesPerWeekEnglish, grade)))
+```
+
+Now, let's look at them individually.
+
+```{r fig.align='center', fig.height=3, fig.width=4.5, message=FALSE, warning=FALSE}
+plt_1 <- ggplot(data = raw_df, aes(x = readingScore))
+plt_1 + geom_histogram() + 
+  ggtitle("Distribution of readingScore")
+```
+
+From the plot, it looks like the feature is normally distributed.
+
+```{r fig.align='center', fig.height=3, fig.width=4.5, message=FALSE, warning=FALSE}
+plt_2 <- ggplot(data = raw_df, aes(x = schoolSize))
+plt_2 + geom_histogram(bins = 30) + 
+  ggtitle("Distribution of schoolSize")
+```
+
+The feature is not normally distributed. 
+Let's see if transformation can be helpful here.
+
+```{r fig.align='center', fig.height=3, fig.width=4.5, message=FALSE, warning=FALSE}
+plt_2 <- ggplot(data = raw_df, aes(x = log(schoolSize)))
+plt_2 + geom_histogram(bins = 30) + 
+  ggtitle("Distribution of schoolSize")
+```
+
+```{r fig.align='center', fig.height=3, fig.width=4.5, message=FALSE, warning=FALSE}
+plt_3 <- ggplot(data = raw_df, aes(x = minutesPerWeekEnglish))
+plt_3 + geom_histogram(bins = 30) + 
+  ggtitle("Distribution of minutesPerWeekEnglish")
+```
+
+Distribution of minutesPerWeekEnglish is positive skewed. 
+
+```{r fig.align='center', fig.height=3, fig.width=4.5, message=FALSE, warning=FALSE}
+plt_4 <- ggplot(data = raw_df, aes(x = studentsInEnglish))
+plt_4 + geom_histogram() + 
+  ggtitle("Distribution of studentsInEnglish")
+```
+
+Distribution of studentsInEnglish is positive skewed.
+
+Let's look at bivariate analysis.
+
+
+```{r fig.align='center', fig.height=3, fig.width=4.5, message=FALSE, warning=FALSE}
+plt_5 <- ggplot(data = raw_df, aes(x = readingScore, y = schoolSize))
+plt_5 + geom_point() + 
+  geom_smooth(method = "lm") + 
+  ggtitle("Relationship between readingScore and schoolSize")
+
+plt_6 <- ggplot(data = raw_df, aes(x = readingScore, y = studentsInEnglish))
+plt_6 + geom_point() + 
+  geom_smooth(method = "lm") + 
+  ggtitle("Relationship between readingScore and studentsInEnglish")
+
+plt_5 <- ggplot(data = raw_df, aes(x = readingScore, y = minutesPerWeekEnglish))
+plt_5 + geom_point() + 
+  geom_smooth(method = "lm") + 
+  ggtitle("Relationship between readingScore and minutesPerWeekEnglish")
+
+```
+
+There is no relationship between continuous features. Let's look at their correlation plot.
+
+```{r fig.align='center', fig.height=6, fig.width=8, message=FALSE, warning=FALSE}
+corrplot(corr = cor(raw_df %>% dplyr::select(c(readingScore, schoolSize, studentsInEnglish, minutesPerWeekEnglish, grade))))
+```
+
+There's no correlation between given continuous features. 
+
+Let's see if there's any relationship on different levels of data.
+
+```{r}
+raw_df <- raw_df %>% mutate(male = as.factor(male), 
+                            preschool = as.factor(preschool), 
+                            expectBachelors = as.factor(expectBachelors), 
+                            motherHS = as.factor(motherHS), 
+                            englishAtHome = as.factor(englishAtHome), 
+                            read30MinsADay = as.factor(read30MinsADay), 
+                            urban = as.factor(urban), 
+                            publicSchool = as.factor(publicSchool), 
+                            schoolHasLibrary = as.factor(schoolHasLibrary), 
+                            computerForSchoolwork = as.factor(computerForSchoolwork), 
+                            fatherBornUS = as.factor(fatherBornUS), 
+                            motherBornUS = as.factor(motherBornUS), 
+                            selfBornUS = as.factor(selfBornUS))
+```
+
+```{r fig.align='center', fig.height=6, fig.width=8, message=FALSE, warning=FALSE}
+ggpairs(raw_df %>% dplyr::select(c(readingScore, expectBachelors, schoolSize, studentsInEnglish, minutesPerWeekEnglish, grade)), aes(color = expectBachelors, alpha = .5))
+```
+
+There is some relationship dependency on expectBachelors on the outcome as well as other features.
+
+```{r fig.align='center', fig.height=6, fig.width=8, message=FALSE, warning=FALSE}
+ggpairs(raw_df %>% dplyr::select(c(readingScore, computerForSchoolwork, schoolSize, studentsInEnglish, minutesPerWeekEnglish, grade)), aes(color = computerForSchoolwork, alpha = .5))
+```
+
+There is a little impact of computerForSchoolwork on readingScore.
+
+```{r fig.align='center', fig.height=4, fig.width=6.5, message=FALSE, warning=FALSE}
+plt_7 <- ggplot(data = raw_df, aes(x = readingScore,
+                                   y = schoolSize, color = selfBornUS))
+plt_7 + geom_point() + 
+  ggtitle("Relationship: readingScore vs schoolSize for selfBornUS")
+```
+
+
+#### c. Check for multicolinearity.
+
+
+
+```{r}
+# baseline full model
+base_model <- lm(readingScore ~., data = train_set)
+
+summary(base_model)
+
+vif(base_model)
+```
+
+```{r}
+model_1 <- lm(readingScore~ grade +male+ expectBachelors +motherBachelors +fatherHS
++fatherBachelors +fatherWork +englishAtHome +computerForSchoolwork
++read30MinsADay+publicSchool +urban +schoolSize, data=train_set)
+
+summary(model_1)
+
+vif(model_1)
+```
+
+
+Since most of the values are closer to 1, multicolinearity might not be a problematic.
+
+
+
+#### d. Create appropriate dummy variables.
+
+
+
+Since a lot of features are represented as 1s and 0s, we will convert their representation to 'Y' and 'N' respectively.
+
+```{r}
+train_set <- train_set %>% 
+  mutate(male = if_else(male == 1, "Y", "N"), 
+         preschool = if_else(preschool == 1, "Y", "N"), 
+         expectBachelors = if_else(expectBachelors == 1, "Y", "N"), 
+         motherHS = if_else(motherHS == 1, "Y", "N"), 
+         motherBachelors = if_else(motherBachelors == 1, "Y", "N"), 
+         motherWork = if_else(motherWork == 1, "Y", "N"), 
+         fatherHS = if_else(fatherHS==1, "Y", "N"), 
+         fatherBachelors = if_else(fatherBachelors ==1, "Y", "N"), 
+         fatherBornUS = if_else(fatherBornUS == 1, "Y", "N"), 
+         fatherWork = if_else(fatherWork == 1, "Y", "N"), 
+         selfBornUS = if_else(selfBornUS == 1, "Y", "N"), 
+         motherBornUS = if_else(motherBornUS ==1, "Y", "N"), 
+         englishAtHome = if_else(englishAtHome ==1, "Y", "N"), 
+         computerForSchoolwork = if_else(computerForSchoolwork ==1, "Y", "N"), 
+         read30MinsADay = if_else(read30MinsADay ==1, "Y", "N"), 
+         schoolHasLibrary = if_else(schoolHasLibrary ==1, "Y", "N"), 
+         publicSchool = if_else(publicSchool ==1, "Y", "N"), 
+         urban = if_else(urban ==1, "Y", "N"))
+
+test_set <- test_set %>% 
+  mutate(male = if_else(male == 1, "Y", "N"), 
+         preschool = if_else(preschool == 1, "Y", "N"), 
+         expectBachelors = if_else(expectBachelors == 1, "Y", "N"), 
+         motherHS = if_else(motherHS == 1, "Y", "N"), 
+         motherBachelors = if_else(motherBachelors == 1, "Y", "N"), 
+         motherWork = if_else(motherWork == 1, "Y", "N"), 
+         fatherHS = if_else(fatherHS==1, "Y", "N"), 
+         fatherBachelors = if_else(fatherBachelors ==1, "Y", "N"), 
+         fatherBornUS = if_else(fatherBornUS == 1, "Y", "N"), 
+         fatherWork = if_else(fatherWork == 1, "Y", "N"), 
+         selfBornUS = if_else(selfBornUS == 1, "Y", "N"), 
+         motherBornUS = if_else(motherBornUS ==1, "Y", "N"), 
+         englishAtHome = if_else(englishAtHome ==1, "Y", "N"), 
+         computerForSchoolwork = if_else(computerForSchoolwork ==1, "Y", "N"), 
+         read30MinsADay = if_else(read30MinsADay ==1, "Y", "N"), 
+         schoolHasLibrary = if_else(schoolHasLibrary ==1, "Y", "N"), 
+         publicSchool = if_else(publicSchool ==1, "Y", "N"), 
+         urban = if_else(urban ==1, "Y", "N"))
+```
+
+
+
+#### e. Perform feature selection.
+
+
+
+```{r results='hide'}
+# full model
+full_model <- lm(readingScore~., data = train_set)
+
+# step wise selection
+step <- stepAIC(full_model, direction="backward")
+```
+
+```{r}
+# stepwise anova
+step$anova
+```
+
+```{r}
+# final model
+final_model <- lm(readingScore~grade + male + raceeth + expectBachelors + motherBachelors + 
+    fatherHS + fatherBachelors + selfBornUS + computerForSchoolwork + 
+    read30MinsADay + publicSchool + schoolSize, data = train_set)
+
+summary(final_model)
+```
+
+
+
+#### f. Check for appropriate second order terms
+
+
+
+```{r}
+# lets see if adding second order terms work
+train_set <- train_set %>% 
+  mutate(minutesPerWeekEnglish_sec_ordr = minutesPerWeekEnglish^2, 
+         studentsInEnglish_sec_ordr = studentsInEnglish^2, 
+         schoolSize_sec_ordr = schoolSize^2, 
+         grade_sec_ordr = grade^2)
+
+test_set <- test_set %>% 
+  mutate(minutesPerWeekEnglish_sec_ordr = minutesPerWeekEnglish^2, 
+         studentsInEnglish_sec_ordr = studentsInEnglish^2, 
+         schoolSize_sec_ordr = schoolSize^2, 
+         grade_sec_ordr = grade^2)
+```
+
+```{r results='hide'}
+# second order model
+sec_ordr_model <- lm(readingScore~., data = train_set)
+
+# use stepwise to determine if second order terms are helpful
+step2 <- stepAIC(sec_ordr_model, direction="backward")
+```
+
+```{r}
+# anova
+step2$anova
+```
+
+
+```{r}
+# second order final model
+sec_ordr_model <- lm(readingScore ~ grade + male + raceeth + expectBachelors + motherBachelors +  fatherHS + fatherBachelors + englishAtHome + computerForSchoolwork + 
+    read30MinsADay + minutesPerWeekEnglish + publicSchool + schoolSize + 
+    minutesPerWeekEnglish_sec_ordr + grade_sec_ordr, data = train_set)
+
+# summary
+summary(sec_ordr_model)
+```
+
+
+
+#### g. Check for appropriate interaction terms.
+
+
+```{r}
+# create interaction terms
+train_set <- train_set %>% 
+  mutate(grade_mins = grade*minutesPerWeekEnglish, 
+         grade_en_stu = grade * studentsInEnglish, 
+         grade_school_size = grade*schoolSize, 
+         mins_stu = minutesPerWeekEnglish * studentsInEnglish, 
+         mins_sch = minutesPerWeekEnglish * schoolSize, 
+         stu_sch = studentsInEnglish * schoolSize)
+
+test_set <- test_set %>% 
+  mutate(grade_mins = grade*minutesPerWeekEnglish, 
+         grade_en_stu = grade * studentsInEnglish, 
+         grade_school_size = grade*schoolSize, 
+         mins_stu = minutesPerWeekEnglish * studentsInEnglish, 
+         mins_sch = minutesPerWeekEnglish * schoolSize, 
+         stu_sch = studentsInEnglish * schoolSize)
+```
+
+```{r}
+# interction model
+interaction_model <- lm(readingScore ~ grade + male + raceeth + expectBachelors + 
+    motherBachelors + fatherHS + fatherBachelors  + 
+    computerForSchoolwork + read30MinsADay  + 
+    publicSchool  + minutesPerWeekEnglish_sec_ordr + 
+    grade_sec_ordr + grade_mins + grade_en_stu + grade_school_size + mins_stu + mins_sch + stu_sch, data = train_set)
+
+# summary
+summary(interaction_model)
+```
+
+Looks like only 1 interaction term is significant in this model. Let's try stepwise model.
+
+```{r results='hide'}
+# full model
+full_model <- lm(readingScore~., data = train_set)
+
+# stepwise
+step_3 <- stepAIC(full_model, direction = "backward")
+```
+
+```{r}
+step_3$anova
+```
+
+
+
+#### h. Transform variables as needed
+
+
+
+We can try some log transformation on the continuous features to see if it affects the model performance.
+
+```{r}
+train_set <- train_set %>% 
+  mutate(minutesPerWeekEnglish_log = log(minutesPerWeekEnglish+1), 
+         studentsInEnglish_log = log(studentsInEnglish+1), 
+         schoolSize_log = log(schoolSize+1))
+
+test_set <- test_set %>% 
+  mutate(minutesPerWeekEnglish_log = log(minutesPerWeekEnglish+1), 
+         studentsInEnglish_log = log(studentsInEnglish+1), 
+         schoolSize_log = log(schoolSize+1))
+```
+
+```{r}
+# model
+transform_model <- lm(readingScore~grade + male + raceeth + expectBachelors + motherBachelors + 
+    fatherHS + fatherBachelors + englishAtHome + computerForSchoolwork + 
+    read30MinsADay + publicSchool + schoolSize + minutesPerWeekEnglish_sec_ordr + 
+    grade_sec_ordr + grade_mins + minutesPerWeekEnglish_log + studentsInEnglish_log + schoolSize_log, data = train_set)
+
+summary(transform_model)
+```
+
+```{r results='hide'}
+# transform full
+transform_full <- lm(readingScore~., data = train_set)
+
+# stepwise model
+step_4 <- stepAIC(transform_full, direction = "backward")
+```
+
+```{r}
+step_4$anova
+```
+
+```{r}
+# transform final
+transform_final <- lm(readingScore ~ grade + male + raceeth + expectBachelors + motherBachelors + 
+    fatherHS + fatherBachelors + englishAtHome + computerForSchoolwork + 
+    read30MinsADay + studentsInEnglish + publicSchool + schoolSize + 
+    minutesPerWeekEnglish_sec_ordr + studentsInEnglish_sec_ordr + 
+    grade_sec_ordr + mins_stu + minutesPerWeekEnglish_log + studentsInEnglish_log, data = train_set)
+
+# summary
+summary(transform_final)
+```
+
+
+
+#### i. Evaluate your final model as if for a data scientist.
+
+So far, We've noticed that the model has not improved from 0.31 adjusted R-squared.
+The final model we tried with has the 0.31 adj R-squared error. 
+The model is already built on training set, let's evaluate this model on the test.
+
+```{r}
+# performance on test
+
+# predict values for test set
+pred_vals <- predict(transform_final, test_set)
+
+test_set <- test_set %>% 
+  mutate(predicted = predict(transform_final, test_set))
+```
+
+```{r}
+plt_8 <- ggplot(data = test_set, aes(x = predicted, y = readingScore))
+plt_8 + geom_point() + 
+  geom_abline(intercept=0, slope=1) +
+  labs(x='Predicted Values', y='Actual Values', title='Predicted vs. Actual Values')
+
+plt_9 <- ggplot()
+plt_9 + geom_density(data = test_set, aes(x = readingScore, fill = "actual"), alpha = 0.3) +
+  geom_density(data = test_set, aes(x = predicted, fill = "predicted"), alpha = 0.3) + 
+  ggtitle("Distribution of predicted vs actual") 
+```
+
+From the plot above, looks like we're predicting mostly above the estimated value (mean of readingScore).
+
+Let's look at the performance metrics of regression model.
+
+```{r}
+# RMSE
+cat("RMSE is ", sqrt(mean((test_set$readingScore - test_set$predicted)^2)))
+```
+
+```{r}
+cat("MSE is ", mean((test_set$readingScore - test_set$predicted)^2))
+```
+
+```{r}
+summary(transform_final)
+```
+
+
+
+
+#### j. Write a summary as if for a layman.
+
+
+The data is sufficient to perform regression analysis. However, there are very few features which are correlated with the outcome (readingScore). Also, data representation is not presented in well fashion. The distribution and results are affected by outliers (extreme values).
+
+In terms of model summary, above model is not the best one out there for predicting readingScore given this data. Although, F-test statistics suggest the overall result are significant, because adj R-squared is only at 0.31, this model can not be used at places where prediction accuracy is primary goal. Meaning, given predictors only account for 37% of the variance in the result.
