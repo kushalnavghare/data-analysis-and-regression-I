@@ -157,9 +157,8 @@ model_no_outlier <- lm(log(PrizeMoney)~., data = df_no_outliers)
 
 summary(model_no_outlier)
 ```
-
-From the results, it looks like the performance improved slightly. However, there are new outliers which are shown in model plots.
-
 ```{r fig.align='center', fig.width=6, fig.height=4}
 plot(model_no_outlier)
 ```
+
+From the results, it looks like the performance improved slightly. However, there are new outliers which are shown in model plots.
