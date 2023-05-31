@@ -1,0 +1,194 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+# DSC 423: Data Analysis & Regression
+## Assignment 9: Advanced Regression Models
+~~~
+Name: Kushal Navghare
+Student ID: 2116916
+Honor Statement: I, Kushal Navghare, assure that I have completed this work independently.
+The solutions given are entirely my own work.
+~~~
+
+```{r echo=FALSE, include=FALSE}
+rm(list=ls())
+dir.path <- '/home/kush/DSC-423_Data_Analysis_Regression_I/'
+setwd(dir.path)
+source(paste0(dir.path, "code/00_Setup.R"))
+
+library(glmnet)
+library(Metrics)
+library(car)
+library(corrplot)
+library(DAAG)
+```
+
+# 1. Previously you created a model using the PISA dataset. Build a model again, this time...
+
+## a. (10 points) Use Ridge regression and present your model along with appropriate outputs.
+
+### i. Discuss how this technique handles multicollinearity.
+
+
+```{r fig.align='center', fig.width=6, fig.height=6}
+# read csv file
+raw_df <- read.csv('../data/Pisa2009.csv')
+
+str(raw_df)
+
+# correlation
+corr_df <- cor(raw_df %>% select_if(is.numeric))
+
+# correlation plot
+corrplot(corr_df)
+```
+
+Ridge regression is a technique used to address the problem of multicollinearity in linear regression models. Ridge regression introduces a penalty term, controlled by the hyperparameter lambda, which helps reduce the impact of multicollinearity. By adding the penalty term, ridge regression shrinks the coefficient estimates towards zero, making them more stable and less sensitive to minor changes in the data. Therefore, ridge regression tends to exhibit stability when considering minor changes in the data used to build the regression.
+
+```{r fig.align='center', fig.height=4.5, fig.width=6}
+# data preprocessing
+df <- raw_df %>% 
+  mutate(raceeth = as.factor(raceeth))
+
+# predictors
+X <- df %>% 
+  select(-c(X, raceeth, readingScore)) %>% 
+  data.matrix()
+
+# target
+y <- df$readingScore
+
+set.seed(42)
+
+ridge_model <- cv.glmnet(X, y, family='gaussian', alpha=0)
+
+plot(ridge_model)
+
+coef(ridge_model, s = ridge_model$lambda.min)
+
+ridge_model$lambda.min
+```
+
+### ii. Evaluate the residual plots. Present the appropriate plots, describe them, and draw appropriate conclusions. Note: to look at the residual plots you can - after selecting variables with ridge regression - build a model using lm and plot the model.
+
+```{r fig.align='center', fig.width=6, fig.height=4.5}
+# let's build a base model
+base_model <- lm(readingScore~ grade+ male +raceeth +expectBachelors
++motherBachelors + fatherHS +fatherBachelors+fatherWork
++motherBornUS +englishAtHome +computerForSchoolwork+read30MinsADay
++minutesPerWeekEnglish +studentsInEnglish  +publicSchool +schoolSize,
+data=df)
+
+summary(base_model)
+
+residuals <- base_model$residuals
+
+
+ggplot() +
+  aes(residuals) +
+  geom_histogram(binwidth=10)
+
+plot(base_model)
+```
+
+Plot 1: No non-linear pattern or heteroscedasticity in the residuals.
+
+Plot 2: Residuals are normally distributed except for some outliers. 
+
+Plot 3: The points are randomly scattered around a horizontal line without a pattern.
+
+Plot 4: Few observations that have a slight impact on the model's estimates.
+
+
+## b. (10 points) Use LASSO regression and present your model along with appropriate outputs.
+
+### i. LASSO is a form of feature selection. Discuss how it reduced the feature space.
+
+LASSO is a powerful technique for feature selection as it can automatically identify and eliminate irrelevant or redundant features from the model. By applying an appropriate regularization parameter, LASSO reduces the feature space by setting the coefficients of irrelevant features to zero, resulting in a more interpretable and potentially more robust model.
+
+```{r fig.align='center', fig.height=4.5, fig.width=6}
+set.seed(42)
+
+# lasso reg
+lasso_model <- cv.glmnet(X,y, family='gaussian', alpha=1)
+
+plot(lasso_model)
+
+lasso_model$lambda.min
+
+coef(lasso_model, s = lasso_model$lambda.min)
+```
+
+In LASSO, a penalty term proportional to the sum of the absolute values of the coefficients is added to the linear function. The regularization parameter, typically denoted as lambda, controls the amount of shrinkage applied. The main idea behind LASSO is that by increasing the value of lambda, many coefficient estimates can be effectively set to zero, effectively eliminating their corresponding features from the model.
+
+This process leads to sparse solutions where only a subset of the original features are retained, and the coefficients of the remaining features are non-zero. The selection of the features occurs automatically during the optimization process based on the strength of their associations with the response variable.
+
+## c. (10 points) Are the two models the same? Explain.
+
+
+Those are two different models because all explanatory variables remain in the model, ridge
+regression has the drawback of requiring a separate approach for locating a parsimonious model. 
+
+LASSO typically performs better when p is big and few of the predicted betas are practically different from 0, as many of them may actually be equal to 0.
+Ridge regression typically performs better when the betas do not differ significantly in substantive magnitude.
+Ridge regression and the lasso will not always prevail over one another.
+While failing to do feature selection may not affect prediction accuracy, it can make it difficult to comprehend models in situations where there are a lot of variables (p).
+LASSO produces sparse models, or models that just use a portion of the variables. These models are typically considerably simpler to understand.
+
+# 2. REMISSION
+
+## a. (10 points) Download "remission" and create a logistic model to predict remission.
+i. Present your model.
+
+```{r fig.align='center', fig.width=6, fig.height=6}
+# read csv
+raw_remission <- read.csv("../data/remission.csv")
+
+summary(raw_remission)
+
+corr_df <- cor(raw_remission %>% select(is.numeric))
+
+corrplot(corr_df)
+```
+
+
+```{r fig.align='center', fig.width=6, fig.height=4.5}
+# data preprocessing
+df <- raw_remission %>% 
+  mutate(remiss = as.factor(remiss))
+
+
+glm_model <- glm(remiss~., data= df, family= binomial)
+
+summary(glm_model)
+
+# final model
+final_model <- glm(remiss~li, data = df, family = binomial)
+
+summary(final_model)
+```
+## b. Notice that you are using the glm function. 
+  i. Explain how this differs from lm.
+  
+GLM offers more flexibility by accommodating a wider range of response variable types and allowing for different error distributions and link functions. GLM is particularly useful when the assumptions of linearity and normality are not met, which makes it a powerful tool for various regression scenarios.
+
+## c. Evaluate the model particularly the independent variables.
+
+```{r}
+summary(final_model)
+
+confint(final_model)
+
+exp(coef(final_model))-1
+```
+
+The Intercept is -3.777 with a standard error of 1.379. It indicates the estimated log-odds of the dependent variable when the independent variable (li) is 0.
+
+The coefficient for li (independent variable) is 2.897 with a standard error of 1.187. It represents the estimated change in the log-odds of the dependent variable for a one-unit increase in the independent variable (li).
+
+AIC is 30.073, dropped from 35 with full model. 
+
+The Null deviance is 34.372 with 26 degrees of freedom, and the Residual deviance is 26.073 with 25 degrees of freedom. These represent goodness-of-fit measures for the model. 
+
