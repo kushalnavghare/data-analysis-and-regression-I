@@ -1,0 +1,57 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+# DSC 423: Data Analysis & Regression
+## Assignment 9: Experimental Design
+~~~
+Name: Kushal Navghare
+Student ID: 2116916
+Honor Statement: I, Kushal Navghare, assure that I have completed this work independently.
+The solutions given are entirely my own work.
+~~~
+
+
+### 1. An economist is interested in the effect of the rising price of gas on drivers. He puts an add on the radio, “Call 1-800-GAS-PUMP, and let me know what you think about the costly price of gasoline.” This is obviously a terrible way to conduct a survey. Identify three ways bias could enter the study.
+<br>
+Ans: Below are the three ways the bias could be introduced in this study
+
+
+1. Sample bias: The survey process relies on individuals voluntarily calling the provided number to express their opinions. This will result involving only people who have strong opinions about the high gas prices, which will results in representing a group of people who have opinions about high gas price and does not represent the entire population.
+
+
+2. Even though the advertisement is public on radio, not everyone will choose to call and provide inputs about high gas prices. Individuals with free time or a specific interest in the topic will only call, while busy individuals or those with different concerns may be less likely to participate in the survey. This again does not represent the whole population and is directed towards people with opinions about high gas prices.
+
+
+3. Since the advertisement is on radio made public, people tend to provide false opinions in the fear of being targetted and will not represent actual opinion about the high gas prices. That being said, the survey responses will be directed towards the only one group of people having high instances. This again will bias the overall outcome of the survey.
+
+### 2. Yvette is a young banker. She and all her friends carry cell phones and use them heavily. Last year, two of Yvette's acquaintances developed brain tumors. Yvette wonders if the tumors are related to use of cell phones. Explain why the experience of Yvette's friends does not provide good evidence that cell phones cause brain tumors.
+<br>
+Ans: To say that cell phones cause brain tumors, it should rely on scientific studies conducted by researchers and within bigger sample size of diverse groups and follow control-treatment group protocols of scientific research. Yvette's observation is based on only two cases of brain tumors among her group of friends. Drawing conclusions from such a small sample size is not statistically reliable. This sample set does not represent the entire population. Also, it is difficult to determine whether the observed brain tumors are truly caused by cell phone use or if other factors are involved. It does not consider other factors like their lifestyle, health conditions, etc.
+
+### 3. A manufacturer of food products uses package liners that are sealed at the top by applying heated jaws after the package is filled. The customer peels the sealed pieces apart to open the package. What effect does the temperature of the jaws have on the force required to peel the liner? To answer this question, the engineers prepare 60 pairs of pieces of package liner. They seal five pairs at each of 250 F, 275 F, 300 F, and 325 F of three different types of liner (A, B, C). Then they measure the peel strength of each seal.
+a. Identify the experimental units or subjects.
+<br>
+Ans: Package liner
+<br>
+b. Identify the factors
+<br>
+Ans: Seal temperature and types of liner
+<br>
+c. Identify the treatments
+<br>
+Ans: The combinations of seal temperature and type of liner
+<br>
+d. Identify the response variables
+<br>
+Ans: peel strength of the sealed package liner.
+<br>
+e. Write the regression model for this experiment.
+<br>
+Ans: Peel Strength = B0 + B1 * Temperature + B2 * Liner Type + C
+<br>
+f. Is this a Randomized Block Design? Explain.
+<br>
+Ans: Yes, it a randomized block design as random participants within the blocks are equal as each have assigned to each treatment.
+<br>
